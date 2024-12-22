@@ -34,6 +34,8 @@ V1.08
 V1.09
 	-BugFix - ExportDrawing
 	-Intern Function iif2 replaced with the core iif function
+V1.10
+	-BugFixes
 #End If
 
 #DesignerProperty: Key: Enable, DisplayName: Enable, FieldType: Boolean, DefaultValue: True
@@ -64,14 +66,14 @@ Sub Class_Globals
 	Private current_index As Int = 0
 	Private g_x,g_y As Float
 	'Properties
-	Private g_enable As Boolean
-	Private g_drawmode As String
-	Private g_strokewidth As Float
-	Private g_strokecolor As Int
+	Private m_Enable As Boolean
+	Private m_DrawMode As String
+	Private m_StrokeWidth As Float
+	Private m_StrokeColor As Int
 	
-	Private g_backgroundcolor As Int
+	Private m_BackgroundColor As Int
 	
-	Private g_cropimageonexport As Boolean
+	Private m_CropImageOnExport As Boolean
 	Private g_KeepAspectRatio As Boolean = False
 End Sub
 
@@ -97,9 +99,9 @@ Public Sub DesignerCreateView (Base As Object, Lbl As Label, Props As Map)
 	jo.RunMethod("setMouseTransparent", Array(True))
     #End If
 	
-	mBase.AddView(xpnl_base,0,0,0,0)
-	mBase.AddView(xiv_backgroundimage,0,0,0,0)
-	mBase.AddView(xiv_base,0,0,0,0)
+	mBase.AddView(xpnl_base,0,0,mBase.Width,mBase.Height)
+	mBase.AddView(xiv_backgroundimage,0,0,mBase.Width,mBase.Height)
+	mBase.AddView(xiv_base,0,0,mBase.Width,mBase.Height)
   #if b4a 
   Base_Resize(mBase.Width,mBase.Height)
 #End If
@@ -107,19 +109,19 @@ Public Sub DesignerCreateView (Base As Object, Lbl As Label, Props As Map)
 End Sub
 
 Private Sub ini_props(Props As Map)
-	g_enable = Props.Get("Enable")
-	g_drawmode = Props.Get("DrawMode")
-	g_strokewidth = Props.Get("StrokeWidth")
-	g_strokecolor = xui.PaintOrColorToColor(Props.Get("StrokeColor"))
-	g_backgroundcolor = xui.PaintOrColorToColor(Props.Get("BackgroundColor"))
+	m_Enable = Props.Get("Enable")
+	m_DrawMode = Props.Get("DrawMode")
+	m_StrokeWidth = Props.Get("StrokeWidth")
+	m_StrokeColor = xui.PaintOrColorToColor(Props.Get("StrokeColor"))
+	m_BackgroundColor = xui.PaintOrColorToColor(Props.Get("BackgroundColor"))
 End Sub
 
 Public Sub Base_Resize (Width As Double, Height As Double)
-	xpnl_base.SetLayoutAnimated(0,0,0,mBase.Width,mBase.Height)
-	xiv_backgroundimage.SetLayoutAnimated(0,0,0,mBase.Width,mBase.Height)
-	xiv_base.SetLayoutAnimated(0,0,0,mBase.Width,mBase.Height)
-	xpnl_base.Color = g_backgroundcolor
-	mBase.Color = g_backgroundcolor
+	xpnl_base.SetLayoutAnimated(0,0,0,Width,Height)
+	xiv_backgroundimage.SetLayoutAnimated(0,0,0,Width,Height)
+	xiv_base.SetLayoutAnimated(0,0,0,Width,Height)
+	xpnl_base.Color = m_BackgroundColor
+	mBase.Color = m_BackgroundColor
   
 	If xpnl_base.Width > 0 And xpnl_base.Height > 0 And isini_xcv = False Then
 		xbc_main.Initialize(Width,Height)
@@ -143,8 +145,44 @@ Public Sub Base_Resize (Width As Double, Height As Double)
 	End If
 End Sub
 
+
+Sub DrawArrow(x1 As Float, y1 As Float, x2 As Float, y2 As Float, arrowLength As Float)
+	' Berechne den Winkel der Hauptlinie
+	Dim angle As Float = ATan2(y2 - y1, x2 - x1)
+
+	' Berechne die Punkte für die Pfeilspitzen
+	Dim arrowAngle As Float = 30 * cPI / 180 ' Winkel des Pfeilkopfes (30 Grad für bessere Sichtbarkeit)
+
+	' Berechne die Punkte für den linken und rechten Pfeilkopf
+	Dim x3 As Float = x2 - arrowLength * Cos(angle - arrowAngle)
+	Dim y3 As Float = y2 - arrowLength * Sin(angle - arrowAngle)
+	Dim x4 As Float = x2 - arrowLength * Cos(angle + arrowAngle)
+	Dim y4 As Float = y2 - arrowLength * Sin(angle + arrowAngle)
+
+	' Zeichne die Hauptlinie (von x1, y1 nach x2, y2)
+	xp_main2.Initialize(x1, y1)
+	xp_main2.LineTo(x2, y2)
+
+	' Zeichne die Pfeilspitzen:
+	' Zeichne die Linie von der Spitze zur linken Seite des Pfeilkopfes (x2, y2 nach x3, y3)
+	xp_main2.LineTo(x3, y3)
+
+	' Zeichne die Linie von der linken Seite zurück zur Spitze (x3, y3 nach x2, y2)
+	xp_main2.LineTo(x2, y2)
+
+	' Zeichne die Linie von der Spitze zur rechten Seite des Pfeilkopfes (x2, y2 nach x4, y4)
+	xp_main2.LineTo(x4, y4)
+
+	' Zeichne die Linie von der rechten Seite zurück zur Spitze (x4, y4 nach x2, y2)
+	xp_main2.LineTo(x2, y2)
+
+	' Setze den Startpunkt für eine neue Zeichnung, falls notwendig
+	xp_main2.LineTo(x1, y1) ' Optional, wenn du zu einem neuen Startpunkt zurückkehren willst
+End Sub
+
+
 Private Sub xpnl_base_Touch (Action As Int, X As Float, Y As Float)
-	If g_enable = True Then
+	If m_Enable = True Then
 		If xui.SubExists(mCallBack, mEventName & "_Touch",2) Then
 			CallSub3(mCallBack, mEventName & "_Touch",Action,CreateMap("X": X,"Y":Y))
 		End If
@@ -157,11 +195,12 @@ Private Sub xpnl_base_Touch (Action As Int, X As Float, Y As Float)
 			g_y = y
 			xp_main2 = tmp_bcp
 			xp_main2.LineTo(x,y)
-			xbc_main.DrawCircle(X,Y,g_strokewidth/2,IIf(g_drawmode = DrawMode_DRAW,g_strokecolor,xui.Color_Transparent),False,g_strokewidth)
-			xbc_main.DrawPath(xp_main2,IIf(g_drawmode = DrawMode_DRAW,g_strokecolor,xui.Color_Transparent),False,g_strokewidth)
+			xbc_main.DrawCircle(X,Y,m_StrokeWidth/2,IIf(m_DrawMode = DrawMode_DRAW,m_StrokeColor,xui.Color_Transparent),False,m_StrokeWidth)
+			xbc_main.DrawPath(xp_main2,IIf(m_DrawMode = DrawMode_DRAW,m_StrokeColor,xui.Color_Transparent),False,m_StrokeWidth)
 			xbc_main.SetBitmapToImageView(xbc_main.Bitmap,xiv_base)
+			
 		Else if Action = xpnl_base.TOUCH_ACTION_MOVE Then
-			If g_drawmode = DrawMode_LINE Then
+			If m_DrawMode = DrawMode_LINE Or m_DrawMode = DrawMode_Arrow Then
 			
 				xbc_main.Initialize(mBase.Width,mBase.Height)
 
@@ -183,33 +222,36 @@ Private Sub xpnl_base_Touch (Action As Int, X As Float, Y As Float)
 				xp_main2 = tmp_bcp
 				xp_main2.LineTo(x,y)
 				
-				xbc_main.DrawCircle(g_x,g_y,g_strokewidth/2,g_strokecolor,False,g_strokewidth) 'begin
-				xbc_main.DrawCircle(x,y,g_strokewidth/2,g_strokecolor,False,g_strokewidth) 'end
-				xbc_main.DrawPath(xp_main2,g_strokecolor,False,g_strokewidth)
+				' Zeichne Pfeil am Anfang der Linie
+				DrawArrow(g_x, g_y, x, y, 20)
+				
+				xbc_main.DrawCircle(g_x,g_y,m_StrokeWidth/2,m_StrokeColor,False,m_StrokeWidth) 'begin
+				xbc_main.DrawCircle(x,y,m_StrokeWidth/2,m_StrokeColor,False,m_StrokeWidth) 'end
+				xbc_main.DrawPath(xp_main2,m_StrokeColor,False,m_StrokeWidth)
 				xbc_main.SetBitmapToImageView(xbc_main.Bitmap,xiv_base)
 			Else
 				xp_main2.LineTo(x,y)
-				xbc_main.DrawCircle(X,Y,g_strokewidth/2,IIf(g_drawmode = DrawMode_DRAW,g_strokecolor,xui.Color_Transparent),False,g_strokewidth)
-				xbc_main.DrawPath(xp_main2,IIf(g_drawmode = DrawMode_DRAW,g_strokecolor,xui.Color_Transparent),False,g_strokewidth)
+				xbc_main.DrawCircle(X,Y,m_StrokeWidth/2,IIf(m_DrawMode = DrawMode_DRAW,m_StrokeColor,xui.Color_Transparent),False,m_StrokeWidth)
+				xbc_main.DrawPath(xp_main2,IIf(m_DrawMode = DrawMode_DRAW,m_StrokeColor,xui.Color_Transparent),False,m_StrokeWidth)
 				xbc_main.SetBitmapToImageView(xbc_main.Bitmap,xiv_base)
 			End If
 		Else if Action = xpnl_base.TOUCH_ACTION_UP Then
-					
-				If current_index < lst_items.Size -1 Then
-					For i = current_index To lst_items.Size
-						If current_index < (lst_items.Size -1) Then
-							lst_items.RemoveAt(current_index +1)
-						End If
-					Next
-			
-				End If
-				If g_drawmode = DrawMode_LINE Then
-					lst_items.Add(CreateItems(g_strokewidth,g_strokecolor,xp_main2))
-				Else
-					lst_items.Add(CreateItems(g_strokewidth,IIf(g_drawmode = DrawMode_DRAW,g_strokecolor,xui.Color_Transparent),xp_main2))
-				End If
-			
-				current_index = lst_items.Size -1		
+
+			If current_index < lst_items.Size -1 Then
+				For i = current_index To lst_items.Size
+					If current_index < (lst_items.Size -1) Then
+						lst_items.RemoveAt(current_index +1)
+					End If
+				Next
+			End If
+
+			If m_DrawMode = DrawMode_LINE Or m_DrawMode = DrawMode_Arrow Then
+				lst_items.Add(CreateItems(m_StrokeWidth, m_StrokeColor, xp_main2))
+			Else
+				lst_items.Add(CreateItems(m_StrokeWidth, IIf(m_DrawMode = DrawMode_DRAW,m_StrokeColor,xui.Color_Transparent),xp_main2))
+			End If
+
+			current_index = lst_items.Size -1
 		End If
 	End If
 End Sub
@@ -324,16 +366,20 @@ Public Sub DrawMode_LINE As String
 	Return "Line"
 End Sub
 
+Public Sub DrawMode_Arrow As String
+	Return "Arrow"
+End Sub
+
 #End Region
 
 #Region Properties
 
 Public Sub getCropImageOnExport As Boolean
-	Return g_cropimageonexport
+	Return m_CropImageOnExport
 End Sub
 
 Public Sub setCropImageOnExport(b As Boolean)
-	 g_cropimageonexport = b
+	 m_CropImageOnExport = b
 End Sub
 
 'gets the background image
@@ -354,24 +400,24 @@ End Sub
 
 'gets or sets the draw enable, if false then the touch event is ignored
 Public Sub getEnable As Boolean
-	Return g_enable
+	Return m_Enable
 End Sub
 
 Public Sub setEnable(enable As Boolean)
-	g_enable = enable
+	m_Enable = enable
 End Sub
 
 Public Sub setDrawMode(mode As String)
-	g_drawmode = mode
+	m_DrawMode = mode
 End Sub
 
 Public Sub getDrawMode As String
-	Return g_drawmode
+	Return m_DrawMode
 End Sub
 
 'gets the complete view as image
 Public Sub getImageComplete As B4XBitmap
-	If g_cropimageonexport And xiv_backgroundimage.GetBitmap.IsInitialized Then
+	If m_CropImageOnExport And xiv_backgroundimage.GetBitmap.IsInitialized Then
 		
 		Dim smallest_top As Float = xiv_backgroundimage.Height/2 - xiv_backgroundimage.GetBitmap.Height/2
 		Dim heigehst_top As Float = xiv_backgroundimage.GetBitmap.Height
@@ -417,30 +463,30 @@ End Sub
 
 'gets or sets the View Background Color
 Public Sub getBackgroundColor As Int
-	Return g_backgroundcolor
+	Return m_BackgroundColor
 End Sub
 
 Public Sub setBackgroundColor(color As Int)
-	g_backgroundcolor = color
+	m_BackgroundColor = color
 	Base_Resize(mBase.Width,mBase.Height)
 End Sub
 
 'gets or sets the thickness of the draw line
 Public Sub getStrokeWidth As Float
-	Return g_strokewidth
+	Return m_StrokeWidth
 End Sub
 
 Public Sub setStrokeWidth(width As Float)
-	g_strokewidth = width
+	m_StrokeWidth = width
 End Sub
 
 'gets or sets the color of the draw line
 Public Sub getStrokeColor As Int
-	Return g_strokecolor
+	Return m_StrokeColor
 End Sub
 
 Public Sub setStrokeColor(color As Int)
-	g_strokecolor = color
+	m_StrokeColor = color
 End Sub
 
 #End Region
